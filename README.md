@@ -1,116 +1,118 @@
-# Gym Tracker — installable phone app
+# Gym Tracker
 
-A single-page app that installs to the home screen on both iPhone and Android, works
-with no signal, and keeps each person's log on their own device. No accounts, no server,
-no app store.
+Installable phone app for logging lifts and cardio. Works offline, no account, and
+each person's data stays on their own device.
 
-## What's in here
+**Live:** https://shikha811.github.io/gym-tracker/
+**Repo:** https://github.com/shikha811/gym-tracker
+
+---
+
+## Files
 
 ```
-index.html              the whole app (HTML + CSS + JS in one file)
-manifest.webmanifest    tells the phone the name, icon, and colours
-sw.js                   service worker — makes it work offline
-icons/                  app icons, generated at every size iOS and Android ask for
+index.html              the entire app — HTML, CSS and JS in one file
+manifest.webmanifest    app name, icons, colours, home-screen shortcuts
+sw.js                   service worker — offline caching
+icons/                  app icons at every size iOS and Android ask for
+README.md               this file
 ```
 
-## Step 1 — put it online
+Nine files, ~70KB total. No build step, no dependencies to install. Chart.js is the
+only external library and it loads from a CDN.
 
-A PWA needs HTTPS to install, so it has to be hosted somewhere. Any static host works
-and the free tiers are far more than enough.
+---
 
-> A note if you're reading this at work: Zerobox is DoorDash's internal default for
-> hosting apps, but it's the wrong tool here — this is a personal project and your
-> family can't reach internal infrastructure. Use a personal account on a public host.
+## Installing on a phone
 
-**Option A — Vercel (simplest, no git needed)**
+**iPhone / iPad** — open the link in **Safari** (must be Safari, not Chrome), tap the
+Share button, scroll down, tap **Add to Home Screen**.
 
-```bash
-npm i -g vercel          # once
-cd gym-app
-vercel                   # sign in, accept the defaults
-vercel --prod            # gives you the live https:// link
-```
+**Android** — open in Chrome, tap **⋮**, tap **Install app**.
 
-Or skip the CLI entirely: log in at vercel.com, choose "Add New… → Project → Deploy
-without Git", and drag the `gym-app` folder onto the page.
+After that it opens full screen with its own icon and works with no signal. Long-press
+the icon for shortcuts straight to Log, Progress, or History.
 
-**Option B — GitHub Pages (free forever, no CLI)**
-
-1. Create a public repo, upload the contents of this folder to the root.
-2. Settings → Pages → Source: `main` branch, `/ (root)` → Save.
-3. Live at `https://<your-username>.github.io/<repo>/` within a minute or two.
-
-Either way you get a permanent HTTPS link. That link *is* the app.
-
-## Step 2 — the message to send your friends and family
-
-Copy-paste this, with your link swapped in:
-
-> Made us a gym tracker 💪 → **<your link>**
->
-> **iPhone:** open the link in **Safari** (it has to be Safari), tap the Share button
-> at the bottom, scroll down, tap **Add to Home Screen**.
->
-> **Android:** open the link in Chrome, tap the **⋮** menu, tap **Install app**.
->
-> It then works like a normal app — full screen, own icon, and it works in the gym
-> even with no signal. Your workouts stay on your phone; nobody else can see them.
-
-That last line matters: everyone gets their own private log from the same link. There's
-no shared database, so there's nothing to set up per person and nothing for you to
-administer.
-
-## Step 3 — shipping updates
-
-Edit `index.html`, then **bump the cache version** in `sw.js`:
-
-```js
-const CACHE = "gym-tracker-v2";   // was v1
-```
-
-Redeploy. Phones pick up the new version the next time the app is opened with a
-connection — no reinstalling, no app store review. If you forget to bump `CACHE`,
-people may keep seeing the old version from their offline cache.
+---
 
 ## What it does
 
-- **Seven day types** — Legs, Back, Chest, Biceps, Triceps, Shoulders, Cardio. Each has
-  its own exercise list, plus a Custom option for anything missing.
-- **Sets** in kg × reps. The weight box pre-fills from last time, so logging a set is
-  usually two taps.
-- **Cardio** in km + minutes, with pace worked out automatically. Available on any day,
-  not just Cardio day.
-- **Rest timer** — starts on its own after each set, beeps when you're up. Configurable
-  length, ±adjustments mid-rest.
-- **Last-time recall** — every exercise shows what you lifted the previous session, so
-  you know the number to beat.
-- **PB flags** on any set that beats your previous best for that exercise.
-- **History** grouped by month, editable and deletable.
-- **Progress charts** — top set and volume over time per exercise, pace and distance for
-  cardio, plus a 12-week volume chart.
-- **Dark mode**, following the phone's own setting by default.
-- **Reminders** via a repeating calendar event (see the caveat below).
-- **Export / import** JSON backups.
+**Logging**
+- Seven day types: Legs, Back, Chest, Biceps, Triceps, Shoulders, Cardio
+- Each day has its own exercise list, plus a Custom option for anything missing
+- Sets in kg × reps. The weight box pre-fills from last time, and the button counts
+  up (Add set 1 → Add set 2) so you can see where you are
+- A green ✓ flash confirms each set landed
+- Cardio in km + minutes with pace calculated, available on any day
+- Free-text notes per session
+
+**Feedback while training**
+- Rest timer starts automatically after each set, beeps when you're up. Adjustable
+  length, ±15s/+30s mid-rest. (Vibration is Android only — iOS blocks it.)
+- Last-time recall on every exercise, so you know the number to beat
+- **PB** flag on any set beating your previous best for that exercise
+
+**Reviewing**
+- History grouped by month, openable and editable
+- Progress charts: top set and volume per exercise over time; distance and pace for
+  cardio; 12-week total volume
+- All-time totals
+
+**Sharing** — the ↗ button in the header produces readable plain text for a coach or
+training partner. Pick this session, last 7 days, last 30 days, or everything; preview
+it; then Share (phone share sheet) or Copy. Notes are included, so check the preview
+before sending.
+
+**Other** — dark mode following the phone's setting, repeating calendar reminders,
+JSON export/import.
+
+---
+
+## Updating the live app
+
+1. Edit the file you want to change
+2. **Bump the cache version in `sw.js`** — `const CACHE = "gym-tracker-v4";`
+3. Upload to https://github.com/shikha811/gym-tracker/upload/main — click
+   **choose your files**, pick the changed files, Commit. Same filenames overwrite.
+4. Live in about a minute
+
+Step 2 is not optional. Skip it and phones keep serving the old version from their
+offline cache, and you'll think the deploy failed.
+
+To pick up the new version on a phone: open the app **with a connection**, then close
+and reopen once. Two opens.
+
+---
 
 ## Things worth knowing
 
-**Data lives on the device, nowhere else.** That's the privacy upside and the backup
-downside. Nothing is uploaded, so nothing can leak — but a new phone starts empty and
-clearing browser data wipes the log. Settings → Backup → **Export data** writes a JSON
-file; **Import** merges it back on the new device. Worth doing every month or so.
+**Data is on the device, nowhere else.** Nothing is uploaded, so nothing can leak —
+but a new phone starts empty and clearing browser data wipes the log. Settings →
+Backup → **Export data** writes a JSON file; **Import** merges it back. Worth doing
+monthly.
+
+**Never "clear site data" to fix a stale cache.** That deletes every logged workout.
+Export first, or on iPhone just delete the home-screen icon and re-add it — that
+refreshes the app without touching stored data.
 
 **No sync between devices.** Your phone and your laptop are separate logs. Real sync
-needs a server and accounts, which is a much bigger project — export/import is the
-manual version.
+needs a server and accounts. Export/import is the manual version.
 
 **Reminders use your calendar, not notifications.** A web app can't reliably fire a
-notification while it's closed — iOS and Android both suspend it. So instead the app
-generates a repeating calendar event (`.ics`) that your phone's own calendar alerts you
-about, 30 minutes ahead. It's a workaround, but it's the one that actually fires.
+notification while closed — both mobile OSes suspend it. So Settings generates a
+repeating `.ics` calendar event that your phone's own calendar alerts you about, 30
+minutes ahead. A workaround, but it actually fires.
 
-**Vibration is Android only.** iOS Safari blocks the vibration API, so the rest timer
-buzzes on Android and beeps on both.
+**The code is readable by anyone.** It's a client-side web app; View Source shows
+everything. That's not a GitHub thing — it's how the web works. There's also nothing
+sensitive in it.
 
-**iOS needs Safari for the install.** Chrome on iPhone can't add to the home screen
-reliably. Worth saying explicitly when you send the link, or half your family will get
-stuck here.
+---
+
+## Known gaps
+
+- No cross-device sync
+- No screenshots in the manifest yet (needs real images of the running app; raises
+  the PWABuilder score and improves Chrome's install dialog)
+- Cardio pace uses total time ÷ total distance per session, not per interval
+- No way to reorder exercises within a session

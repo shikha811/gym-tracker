@@ -176,6 +176,35 @@
   .sw input:checked + span { background: var(--accent); }
   .sw input:checked + span::after { transform: translateX(19px); }
 
+  /* confirmation flash on a newly logged set */
+  @keyframes flashIn {
+    0%   { background: var(--green-soft); border-color: var(--green); transform: scale(.99); }
+    100% { background: var(--card); border-color: var(--line); transform: none; }
+  }
+  .set.flash { animation: flashIn .65s ease-out; }
+  .logged { font-size: 11px; font-weight: 700; color: var(--green); margin-left: 6px; }
+
+  /* share sheet */
+  #shareWrap {
+    position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45);
+    display: flex; align-items: flex-end; justify-content: center; padding: 0;
+  }
+  #shareWrap.hide { display: none !important; }
+  #shareCard {
+    background: var(--card); width: 100%; max-width: 560px;
+    border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height: 88vh; overflow-y: auto;
+  }
+  #shareCard h3 { margin: 0 0 3px; font-size: 17px; }
+  #shareCard .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  #sharePreview {
+    background: var(--sunk); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word; max-height: 34vh; overflow-y: auto;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  @media (min-width: 560px) { #shareWrap { align-items: center; } #shareCard { border-radius: 16px; } }
+
   #installTip { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 11px; padding: 12px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.5; }
   #installTip b { display: block; margin-bottom: 3px; }
   #installTip .x { color: var(--muted); float: right; margin: -4px -4px 0 0; }
@@ -191,6 +220,7 @@
   <header>
     <h1>🏋️ Gym Tracker</h1>
     <span class="saved" id="savedFlag">Saved</span>
+    <button class="icobtn" id="shareBtn" title="Share with your trainer" aria-label="Share workout">↗</button>
     <button class="icobtn" id="themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
   </header>
 
@@ -364,6 +394,29 @@
   </section>
 </div>
 
+<!-- share sheet -->
+<div id="shareWrap" class="hide">
+  <div id="shareCard">
+    <h3>Share your training</h3>
+    <div class="sub">Readable text you can paste to your trainer in WhatsApp, Messages or email.</div>
+    <label class="fld">What to include</label>
+    <div class="seg" id="shareScope" style="margin-bottom:12px">
+      <button data-scope="session">This session</button>
+      <button data-scope="7">Last 7 days</button>
+      <button data-scope="30">Last 30 days</button>
+      <button data-scope="all">Everything</button>
+    </div>
+    <label class="fld">Preview</label>
+    <div id="sharePreview"></div>
+    <div class="row">
+      <button class="btn" id="shareSend" style="flex:1">Share</button>
+      <button class="btn ghost" id="shareCopy">Copy</button>
+      <button class="btn ghost" id="shareClose">Close</button>
+    </div>
+    <p class="note" id="shareNote"></p>
+  </div>
+</div>
+
 <!-- rest timer bar -->
 <div id="rest">
   <div>
@@ -480,6 +533,7 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   var cur = { date: todayISO(), day: "Legs" };
+  var justAdded = null;   /* {ei, si} of the most recently logged set, for the confirm flash */
 
   function findWorkout(date, day) {
     for (var i = 0; i < state.workouts.length; i++) {
@@ -669,9 +723,10 @@
 
         var sets = (ex.sets || []).map(function (s, si) {
           var pb = prevBest > 0 && num(s.weight) > prevBest ? '<span class="pb">PB</span>' : "";
-          return '<div class="set"><span class="n">' + (si + 1) + '</span>' +
+          var isNew = justAdded && justAdded.ei === ei && justAdded.si === si;
+          return '<div class="set' + (isNew ? " flash" : "") + '"><span class="n">' + (si + 1) + '</span>' +
                  '<span class="v"><strong>' + round(num(s.weight), 1) + '</strong> kg × <strong>' + num(s.reps) + '</strong></span>' +
-                 pb + '<span class="sp"></span>' +
+                 pb + (isNew ? '<span class="logged">✓ logged</span>' : "") + '<span class="sp"></span>' +
                  '<button class="x" data-del-set="' + ei + ":" + si + '" aria-label="Remove set">×</button></div>';
         }).join("");
 
@@ -684,7 +739,7 @@
           '<div class="addset">' +
             '<input type="number" inputmode="decimal" step="0.5" min="0" placeholder="kg" data-w="' + ei + '" value="' + (prefill ? round(prefill, 1) : "") + '">' +
             '<input type="number" inputmode="numeric" step="1" min="0" placeholder="reps" data-r="' + ei + '">' +
-            '<button class="btn sm" data-add-set="' + ei + '">Add set</button>' +
+            '<button class="btn sm" data-add-set="' + ei + '">Add set ' + ((ex.sets || []).length + 1) + '</button>' +
           '</div></div>';
       }).join("");
     }
@@ -1038,7 +1093,18 @@
       var reps = num(ri.value);
       if (reps <= 0) { ri.focus(); return; }
       w.exercises[ei].sets.push({ weight: num(wi.value), reps: reps });
+      justAdded = { ei: ei, si: w.exercises[ei].sets.length - 1 };
       commit();
+      /* clear the confirmation without a re-render, so focus isn't stolen mid-workout */
+      setTimeout(function () {
+        justAdded = null;
+        var row = document.querySelector("#exList .set.flash");
+        if (row) {
+          row.classList.remove("flash");
+          var badge = row.querySelector(".logged");
+          if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+        }
+      }, 2200);
       if (prefs.restAuto && prefs.restSec > 0) startRest(+prefs.restSec);
       var again = document.querySelector('[data-r="' + ei + '"]');
       if (again) again.focus();
@@ -1255,6 +1321,129 @@
     });
   }
 
+  /* ---------------- share with a trainer ---------------- */
+  var shareScope = "session";
+
+  function isoDaysAgo(n) {
+    var d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function buildReport(scope) {
+    var list = state.workouts.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var title;
+
+    if (scope === "session") {
+      var one = findWorkout(cur.date, cur.day);
+      list = one ? [one] : [];
+      title = fmtDate(cur.date) + " · " + cur.day;
+    } else if (scope === "all") {
+      title = "full training log";
+    } else {
+      var days = +scope;
+      var cutoff = isoDaysAgo(days);
+      list = list.filter(function (w) { return w.date >= cutoff; });
+      title = "last " + days + " days";
+    }
+
+    if (!list.length) return "Nothing logged for " + title + " yet.";
+
+    var out = ["🏋️ Gym Tracker — " + title, ""];
+    var tVol = 0, tSets = 0, tKm = 0;
+
+    list.forEach(function (w) {
+      if (scope !== "session") out.push(fmtDate(w.date) + "  ·  " + w.day);
+      (w.exercises || []).forEach(function (ex) {
+        out.push("  " + ex.name);
+        (ex.sets || []).forEach(function (s, i) {
+          out.push("    " + (i + 1) + ".  " + round(num(s.weight), 1) + " kg × " + num(s.reps));
+        });
+      });
+      (w.cardio || []).forEach(function (c) {
+        var pace = num(c.km) > 0 && num(c.minutes) > 0
+          ? "  (" + fmtPace(num(c.minutes) / num(c.km)) + " /km)" : "";
+        out.push("  " + c.type + " — " + round(num(c.km), 2) + " km · " + fmtDur(num(c.minutes)) + pace);
+      });
+      var v = volOf(w), sc = setCount(w);
+      var line = "  → " + sc + (sc === 1 ? " set" : " sets");
+      if (v > 0) line += " · " + round(v) + " kg volume";
+      if (kmOf(w) > 0) line += " · " + round(kmOf(w), 2) + " km";
+      out.push(line);
+      if ((w.notes || "").trim()) out.push("  Notes: " + w.notes.trim());
+      out.push("");
+      tVol += v; tSets += sc; tKm += kmOf(w);
+    });
+
+    if (list.length > 1) {
+      out.push("──────────");
+      var tot = list.length + " sessions · " + tSets + " sets";
+      if (tVol > 0) tot += " · " + round(tVol) + " kg total volume";
+      if (tKm > 0) tot += " · " + round(tKm, 1) + " km";
+      out.push(tot);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function paintShare() {
+    Array.prototype.forEach.call(document.querySelectorAll("#shareScope button"), function (b) {
+      b.classList.toggle("on", b.dataset.scope === shareScope);
+    });
+    document.getElementById("sharePreview").textContent = buildReport(shareScope);
+    document.getElementById("shareNote").textContent =
+      navigator.share ? "Share opens your phone's normal share sheet — pick WhatsApp, Messages, email, anything."
+                      : "This browser has no share sheet, so use Copy and paste it wherever you like.";
+  }
+
+  document.getElementById("shareBtn").addEventListener("click", function () {
+    shareScope = findWorkout(cur.date, cur.day) ? "session" : "7";
+    paintShare();
+    document.getElementById("shareWrap").classList.remove("hide");
+  });
+  document.getElementById("shareClose").addEventListener("click", function () {
+    document.getElementById("shareWrap").classList.add("hide");
+  });
+  document.getElementById("shareWrap").addEventListener("click", function (e) {
+    if (e.target === this) this.classList.add("hide");
+  });
+  document.getElementById("shareScope").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-scope]");
+    if (!b) return;
+    shareScope = b.dataset.scope;
+    paintShare();
+  });
+  document.getElementById("shareSend").addEventListener("click", function () {
+    var text = buildReport(shareScope);
+    if (navigator.share) {
+      navigator.share({ title: "My training", text: text }).catch(function () { /* user cancelled */ });
+    } else {
+      document.getElementById("shareCopy").click();
+    }
+  });
+  document.getElementById("shareCopy").addEventListener("click", function () {
+    var text = buildReport(shareScope);
+    var btn = this, done = function () {
+      btn.textContent = "Copied ✓";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text, done); });
+    } else {
+      legacyCopy(text, done);
+    }
+  });
+  function legacyCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
   /* ---------------- boot ---------------- */
   loadAll();
   prune();
@@ -1263,7 +1452,18 @@
   document.getElementById("dateIn").value = cur.date;
   renderLog();
   renderSettings();
-  showTab(["log", "history", "progress", "settings"].indexOf(prefs.tab) >= 0 ? prefs.tab : "log");
+
+  /* Home-screen shortcuts open ./?tab=progress etc — honour that, else last tab used */
+  var TABS = ["log", "history", "progress", "settings"];
+  var wanted = null;
+  try {
+    wanted = new URLSearchParams(window.location.search).get("tab");
+  } catch (e) {
+    var m = /[?&]tab=([a-z]+)/.exec(window.location.search || "");
+    wanted = m ? m[1] : null;
+  }
+  if (TABS.indexOf(wanted) < 0) wanted = TABS.indexOf(prefs.tab) >= 0 ? prefs.tab : "log";
+  showTab(wanted);
   maybeShowTip();
 })();
 </script>

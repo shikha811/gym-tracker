@@ -1,6 +1,6 @@
 /* Gym Tracker service worker — offline-first.
    Bump CACHE when you change any file so phones pick up the new version. */
-const CACHE = "gym-tracker-v3";
+const CACHE = "gym-tracker-v4";
 
 const LOCAL = [
   "./",

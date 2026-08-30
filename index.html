@@ -210,8 +210,11 @@
   #installTip .x { color: var(--muted); float: right; margin: -4px -4px 0 0; }
 
   @media (max-width: 480px) {
+    /* kg and reps share one row, button spans below — three stacked full-width
+       rows made each exercise card needlessly tall on a phone */
     .addset { flex-wrap: wrap; }
-    .addset .btn { width: 100%; }
+    .addset input { flex: 1 1 calc(50% - 3px); min-width: 0; }
+    .addset .btn { flex: 1 1 100%; width: 100%; }
   }
 </style>
 </head>

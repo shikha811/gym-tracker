@@ -23,6 +23,22 @@
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
+  "screenshots": [
+    {
+      "src": "screenshots/log.png",
+      "sizes": "641x1278",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Log every set as you go, with the weight pre-filled from last time"
+    },
+    {
+      "src": "screenshots/share.png",
+      "sizes": "641x1278",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Send a readable summary of your session to your coach"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Log a workout",

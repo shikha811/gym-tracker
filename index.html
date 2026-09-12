@@ -204,6 +204,9 @@
     color: var(--ink); margin-bottom: 12px;
   }
   @media (min-width: 560px) { #shareWrap { align-items: center; } #shareCard { border-radius: 16px; } }
+  /* five scope options — let them wrap rather than squeezing into one row */
+  #shareScope { flex-wrap: wrap; }
+  #shareScope button { flex: 1 1 30%; min-width: 96px; }
 
   #installTip { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 11px; padding: 12px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.5; }
   #installTip b { display: block; margin-bottom: 3px; }
@@ -404,7 +407,8 @@
     <div class="sub">Readable text you can paste to your trainer in WhatsApp, Messages or email.</div>
     <label class="fld">What to include</label>
     <div class="seg" id="shareScope" style="margin-bottom:12px">
-      <button data-scope="session">This session</button>
+      <button data-scope="day">Whole day</button>
+      <button data-scope="session">Just this body part</button>
       <button data-scope="7">Last 7 days</button>
       <button data-scope="30">Last 30 days</button>
       <button data-scope="all">Everything</button>
@@ -1325,7 +1329,7 @@
   }
 
   /* ---------------- share with a trainer ---------------- */
-  var shareScope = "session";
+  var shareScope = "day";
 
   function isoDaysAgo(n) {
     var d = new Date();
@@ -1333,58 +1337,99 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
 
+  function totalsLine(vol, sets, km, prefix) {
+    var t = prefix + sets + (sets === 1 ? " set" : " sets");
+    if (vol > 0) t += " · " + round(vol) + " kg volume";
+    if (km > 0) t += " · " + round(km, 2) + " km";
+    return t;
+  }
+
   function buildReport(scope) {
-    var list = state.workouts.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-    var title;
+    var all = state.workouts.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var list, title, multiDate = false;
 
     if (scope === "session") {
       var one = findWorkout(cur.date, cur.day);
       list = one ? [one] : [];
       title = fmtDate(cur.date) + " · " + cur.day;
+    } else if (scope === "day") {
+      /* every body part trained on this date, in one report */
+      list = all.filter(function (w) { return w.date === cur.date; });
+      title = fmtDate(cur.date);
     } else if (scope === "all") {
+      list = all;
       title = "full training log";
+      multiDate = true;
     } else {
-      var days = +scope;
-      var cutoff = isoDaysAgo(days);
-      list = list.filter(function (w) { return w.date >= cutoff; });
-      title = "last " + days + " days";
+      var cutoff = isoDaysAgo(+scope);
+      list = all.filter(function (w) { return w.date >= cutoff; });
+      title = "last " + scope + " days";
+      multiDate = true;
     }
 
     if (!list.length) return "Nothing logged for " + title + " yet.";
 
-    var out = ["🏋️ Gym Tracker — " + title, ""];
-    var tVol = 0, tSets = 0, tKm = 0;
-
+    /* group by date so a day with several body parts reads as one day */
+    var byDate = {}, order = [];
     list.forEach(function (w) {
-      if (scope !== "session") out.push(fmtDate(w.date) + "  ·  " + w.day);
-      (w.exercises || []).forEach(function (ex) {
-        out.push("  " + ex.name);
-        (ex.sets || []).forEach(function (s, i) {
-          out.push("    " + (i + 1) + ".  " + round(num(s.weight), 1) + " kg × " + num(s.reps));
-        });
-      });
-      (w.cardio || []).forEach(function (c) {
-        var pace = num(c.km) > 0 && num(c.minutes) > 0
-          ? "  (" + fmtPace(num(c.minutes) / num(c.km)) + " /km)" : "";
-        out.push("  " + c.type + " — " + round(num(c.km), 2) + " km · " + fmtDur(num(c.minutes)) + pace);
-      });
-      var v = volOf(w), sc = setCount(w);
-      var line = "  → " + sc + (sc === 1 ? " set" : " sets");
-      if (v > 0) line += " · " + round(v) + " kg volume";
-      if (kmOf(w) > 0) line += " · " + round(kmOf(w), 2) + " km";
-      out.push(line);
-      if ((w.notes || "").trim()) out.push("  Notes: " + w.notes.trim());
-      out.push("");
-      tVol += v; tSets += sc; tKm += kmOf(w);
+      if (!byDate[w.date]) { byDate[w.date] = []; order.push(w.date); }
+      byDate[w.date].push(w);
     });
 
-    if (list.length > 1) {
+    var out = ["🏋️ Gym Tracker — " + title, ""];
+    var gVol = 0, gSets = 0, gKm = 0, nSessions = 0;
+    var pad = multiDate ? "    " : "  ";
+
+    order.forEach(function (date) {
+      var group = byDate[date];
+      if (multiDate) out.push(fmtDate(date));
+
+      var dVol = 0, dSets = 0, dKm = 0;
+      var dayCardio = [], dayNotes = [];
+
+      group.forEach(function (w) {
+        nSessions++;
+        /* only print a body-part heading if there are lifts under it */
+        if (scope !== "session" && (w.exercises || []).length) {
+          out.push((multiDate ? "  " : "") + w.day.toUpperCase());
+        }
+        (w.exercises || []).forEach(function (ex) {
+          out.push(pad + ex.name);
+          (ex.sets || []).forEach(function (s, i) {
+            out.push(pad + "  " + (i + 1) + ".  " + round(num(s.weight), 1) + " kg × " + num(s.reps));
+          });
+        });
+        /* cardio isn't body-part specific — collect it and list it once per day,
+           otherwise a run shows up filed under "CHEST" and reads as a mistake */
+        (w.cardio || []).forEach(function (c) { dayCardio.push(c); });
+        if ((w.notes || "").trim()) dayNotes.push(w.notes.trim());
+        dVol += volOf(w); dSets += setCount(w); dKm += kmOf(w);
+      });
+
+      if (dayCardio.length) {
+        out.push((multiDate ? "  " : "") + "CARDIO");
+        dayCardio.forEach(function (c) {
+          var pace = num(c.km) > 0 && num(c.minutes) > 0
+            ? "  (" + fmtPace(num(c.minutes) / num(c.km)) + " /km)" : "";
+          out.push(pad + c.type + " — " + round(num(c.km), 2) + " km · " + fmtDur(num(c.minutes)) + pace);
+        });
+      }
+      dayNotes.forEach(function (n) { out.push((multiDate ? "  " : "") + "Notes: " + n); });
+
+      /* per-day subtotal only where it isn't just repeating the grand total */
+      if (multiDate) out.push(totalsLine(dVol, dSets, dKm, "  → "));
+      out.push("");
+      gVol += dVol; gSets += dSets; gKm += dKm;
+    });
+
+    if (nSessions > 1 || order.length > 1) {
       out.push("──────────");
-      var tot = list.length + " sessions · " + tSets + " sets";
-      if (tVol > 0) tot += " · " + round(tVol) + " kg total volume";
-      if (tKm > 0) tot += " · " + round(tKm, 1) + " km";
-      out.push(tot);
+      var head = multiDate ? order.length + (order.length === 1 ? " day · " : " days · ") : "";
+      out.push(head + totalsLine(gVol, gSets, gKm, "").trim());
+    } else {
+      out.push(totalsLine(gVol, gSets, gKm, "→ "));
     }
+
     return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
@@ -1399,7 +1444,8 @@
   }
 
   document.getElementById("shareBtn").addEventListener("click", function () {
-    shareScope = findWorkout(cur.date, cur.day) ? "session" : "7";
+    var anyToday = state.workouts.some(function (w) { return w.date === cur.date; });
+    shareScope = anyToday ? "day" : "7";
     paintShare();
     document.getElementById("shareWrap").classList.remove("hide");
   });
